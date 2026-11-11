@@ -67,7 +67,12 @@ class RedisCounter:
     def __init__(self, host, port, password=None):
         import redis  # import local : Redis n'est requis que s'il est utilisé
 
-        self.client = redis.Redis(host=host, port=port, password=password, socket_timeout=2)
+        self.client = redis.Redis(
+            host=host,
+            port=port,
+            password=password,
+            socket_timeout=2,
+        )
 
     def incr(self):
         return int(self.client.incr("visits"))
@@ -83,7 +88,9 @@ def build_counter():
     host = os.getenv("REDIS_HOST")
     if host:
         return RedisCounter(
-            host, int(os.getenv("REDIS_PORT", "6379")), os.getenv("REDIS_PASSWORD") or None
+            host,
+            int(os.getenv("REDIS_PORT", "6379")),
+            os.getenv("REDIS_PASSWORD") or None,
         )
     return MemoryCounter()
 
