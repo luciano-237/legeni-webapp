@@ -4,17 +4,21 @@ Petite application Flask utilisée dans tous les TPs (Docker, Jenkins,
 Kubernetes, Ansible) et dans le projet CI/CD final.
 
 Variables d'environnement :
-    APP_VERSION  version affichée (injectée au build ou au déploiement)
+    APP_VERSION  version (injectée au build)
     APP_ENV      environnement (dev, staging, prod)
-    APP_COLOR    couleur de la bannière (pratique pour visualiser un rolling update)
-    REDIS_HOST   si défini, le compteur de visites est stocké dans Redis
+    APP_COLOR    couleur de la bannière
+    REDIS_HOST   si défini, stockage dans Redis
     REDIS_PORT   port Redis (6379 par défaut)
     REDIS_PASSWORD  mot de passe Redis (optionnel)
 """
 import os
 import socket
 
-from flask import Flask, jsonify, render_template_string
+from flask import (
+    Flask,
+    jsonify,
+    render_template_string,
+)
 
 PAGE = """<!doctype html>
 <html lang="fr">
@@ -44,7 +48,9 @@ PAGE = """<!doctype html>
 
 
 class MemoryCounter:
-    """Compteur en mémoire : perdu au redémarrage, non partagé entre réplicas."""
+    """Compteur en mémoire : perdu au redémarrage,
+    non partagé entre réplicas.
+    """
 
     name = "memoire"
 
@@ -65,7 +71,7 @@ class RedisCounter:
     name = "redis"
 
     def __init__(self, host, port, password=None):
-        import redis  # import local : Redis n'est requis que s'il est utilisé
+        import redis  # import local
 
         self.client = redis.Redis(
             host=host,
@@ -127,12 +133,10 @@ def create_app(counter=None):
 
     @app.route("/health")
     def health():
-        # Liveness : le processus répond.
         return jsonify(status="ok")
 
     @app.route("/ready")
     def ready():
-        # Readiness : les dépendances (Redis) sont joignables.
         if app.config["COUNTER"].ping():
             return jsonify(status="ready")
         return jsonify(status="redis indisponible"), 503
