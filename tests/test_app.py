@@ -50,7 +50,3 @@ def test_api_info(client):
     assert data["app"] == "legeni-webapp"
     assert data["version"] == "1.2.3"
     assert data["hostname"]
-
-
-def test_notification_echec():
-    assert False
