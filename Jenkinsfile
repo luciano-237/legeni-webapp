@@ -88,6 +88,9 @@ pipeline {
         }
         failure {
             echo "❌ ${env.JOB_NAME} #${env.BUILD_NUMBER} en échec"
+            withCredentials([string(credentialsId: 'webhook-discord', variable: 'HOOK')]) {
+                sh 'curl -s -H "Content-Type: application/json" -d "{\\"content\\": \\"❌ $JOB_NAME #$BUILD_NUMBER en échec\\"}" "$HOOK"'
+            }
         }
     }
 }
