@@ -148,4 +148,3 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
-# Ceci est un commentaire tres long qui depasse largement la limite de caracteres autorisee par flake8 pour declencher volontairement une erreur E501 dans le pipeline qualite
