@@ -148,18 +148,3 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
-
-
-def fonction_non_testee(n):
-    total = 0
-    for i in range(n):
-        if i % 2 == 0:
-            total += i
-        else:
-            total += i * 2
-    a = total + 1
-    b = a * 2
-    c = b - 3
-    d = c + 4
-    e = d * 5
-    return e
