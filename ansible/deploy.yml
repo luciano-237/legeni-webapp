@@ -107,6 +107,8 @@
             api_version: batch/v1
             kind: Job
             name: smoke-test
+            delete_options:
+              propagationPolicy: Background
             namespace: "{{ k8s_namespace }}"
 
         - name: Echec explicite du deploiement
@@ -120,5 +122,7 @@
             api_version: batch/v1
             kind: Job
             name: smoke-test
+            delete_options:
+              propagationPolicy: Background
             namespace: "{{ k8s_namespace }}"
           ignore_errors: true
