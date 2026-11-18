@@ -11,3 +11,12 @@ docs
 Jenkinsfile*
 docker-compose*.yml
 README.md
+kubeconfig*
+*.yml.bak
+.env
+.env.*
+*.log
+deploy
+nginx
+Dockerfile
+.dockerignore
