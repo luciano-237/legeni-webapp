@@ -8,35 +8,117 @@
     - "vars/vault.yml"
 
   tasks:
-    - name: 1. Afficher les informations du déploiement
-      ansible.builtin.debug:
-        msg: "Déploiement de {{ image_repository }}:{{ image_tag }} vers le namespace {{ k8s_namespace }} (Environnement: {{ target_env }})"
-
-    - name: 2. Appliquer les manifests Kubernetes dans l'ordre
-      kubernetes.core.k8s:
-        state: present
-        definition: "{{ lookup('template', item) | from_yaml_all }}"
-      loop:
-        - "../k8s/00-namespace.yaml.j2"
-        - "../k8s/01-secret.yaml.j2"
-        - "../k8s/02-configmap.yaml.j2"
-        - "../k8s/03-redis-statefulset.yaml.j2"
-        - "../k8s/04-webapp-deployment.yaml.j2"
-        - "../k8s/05-service-ingress-hpa.yaml.j2"
-
-    - name: 3. Attendre que le déploiement de l'application soit prêt
+    - name: 0. Lire l'etat actuel du Deployment (pour le rollback)
       kubernetes.core.k8s_info:
         api_version: apps/v1
         kind: Deployment
         name: legeni-webapp
         namespace: "{{ k8s_namespace }}"
-      register: deploy_status
-      until: >
-        deploy_status.resources[0].status.readyReplicas is defined and
-        deploy_status.resources[0].status.readyReplicas == app_replicas
-      retries: 15
-      delay: 5
+      register: current
 
-    - name: 4. Afficher le succès du déploiement
+    - name: 0b. Memoriser l'image precedente
+      ansible.builtin.set_fact:
+        previous_image: "{{ current.resources[0].spec.template.spec.containers[0].image }}"
+      when: current.resources | length > 0
+
+    - name: 1. Afficher les informations du deploiement
       ansible.builtin.debug:
-        msg: "Application déployée et prête avec succès sur http://{{ ingress_host }} (NodePort: {{ node_port }})"
+        msg: "Deploiement de {{ image_repository }}:{{ image_tag }} vers {{ k8s_namespace }} (precedent : {{ previous_image | default('aucun') }})"
+
+    - name: Deploiement avec verification et rollback automatique
+      block:
+        - name: 2. Appliquer les manifests Kubernetes dans l'ordre
+          kubernetes.core.k8s:
+            state: present
+            definition: "{{ lookup('template', item) | from_yaml_all }}"
+          loop:
+            - "../k8s/00-namespace.yaml.j2"
+            - "../k8s/01-secret.yaml.j2"
+            - "../k8s/02-configmap.yaml.j2"
+            - "../k8s/03-redis-statefulset.yaml.j2"
+            - "../k8s/04-webapp-deployment.yaml.j2"
+            - "../k8s/05-service-ingress-hpa.yaml.j2"
+
+        - name: 3. Attendre la fin du rolling update
+          kubernetes.core.k8s_info:
+            api_version: apps/v1
+            kind: Deployment
+            name: legeni-webapp
+            namespace: "{{ k8s_namespace }}"
+          register: deploy_status
+          until: >
+            deploy_status.resources[0].status.updatedReplicas | default(0) == app_replicas and
+            deploy_status.resources[0].status.readyReplicas | default(0) == app_replicas and
+            deploy_status.resources[0].status.replicas | default(0) == app_replicas
+          retries: 18
+          delay: 5
+
+        - name: 4. Smoke test - verifier la version deployee
+          kubernetes.core.k8s:
+            state: present
+            definition:
+              apiVersion: batch/v1
+              kind: Job
+              metadata:
+                name: smoke-test
+                namespace: "{{ k8s_namespace }}"
+              spec:
+                backoffLimit: 0
+                ttlSecondsAfterFinished: 120
+                template:
+                  spec:
+                    restartPolicy: Never
+                    containers:
+                      - name: curl
+                        image: curlimages/curl:8.11.1
+                        imagePullPolicy: IfNotPresent
+                        command:
+                          - sh
+                          - -c
+                          - >-
+                            curl -sf --max-time 5 http://legeni-webapp/api/info
+                            | grep -q '"version":"{{ image_tag }}"'
+            wait: true
+            wait_condition:
+              type: Complete
+              status: "True"
+            wait_timeout: 90
+
+      rescue:
+        - name: ROLLBACK - remettre l'image precedente
+          kubernetes.core.k8s:
+            state: patched
+            api_version: apps/v1
+            kind: Deployment
+            name: legeni-webapp
+            namespace: "{{ k8s_namespace }}"
+            definition:
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: legeni-webapp
+                        image: "{{ previous_image }}"
+          when: previous_image is defined
+
+        - name: ROLLBACK - supprimer le smoke test rate
+          kubernetes.core.k8s:
+            state: absent
+            api_version: batch/v1
+            kind: Job
+            name: smoke-test
+            namespace: "{{ k8s_namespace }}"
+
+        - name: Echec explicite du deploiement
+          ansible.builtin.fail:
+            msg: "Deploiement echoue, rollback vers {{ previous_image | default('(premiere installation)') }}"
+
+      always:
+        - name: Nettoyer le Job de smoke test
+          kubernetes.core.k8s:
+            state: absent
+            api_version: batch/v1
+            kind: Job
+            name: smoke-test
+            namespace: "{{ k8s_namespace }}"
+          ignore_errors: true

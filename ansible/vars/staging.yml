@@ -6,3 +6,4 @@ node_port: 30080
 ingress_host: "staging.legeni.local"
 image_repository: "legeni-webapp"
 image_tag: "1.0.0-1"
+app_version: "1.0.0"
