@@ -1,0 +1,8 @@
+target_env: "staging"
+k8s_namespace: "legeni-staging"
+app_replicas: 1
+app_color: "#2da44e"
+node_port: 30080
+ingress_host: "staging.legeni.local"
+image_repository: "legeni-webapp"
+image_tag: "1.0.0-1"

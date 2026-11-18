@@ -1,0 +1,8 @@
+target_env: "prod"
+k8s_namespace: "legeni-prod"
+app_replicas: 2
+app_color: "#0969da"
+node_port: 30081
+ingress_host: "legeni.local"
+image_repository: "legeni-webapp"
+image_tag: "1.0.0-1"

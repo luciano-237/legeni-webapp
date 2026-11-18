@@ -1,0 +1,42 @@
+---
+- name: Deploiement Kubernetes de Legeni WebApp
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "vars/{{ target_env | default('staging') }}.yml"
+    - "vars/vault.yml"
+
+  tasks:
+    - name: 1. Afficher les informations du déploiement
+      ansible.builtin.debug:
+        msg: "Déploiement de {{ image_repository }}:{{ image_tag }} vers le namespace {{ k8s_namespace }} (Environnement: {{ target_env }})"
+
+    - name: 2. Appliquer les manifests Kubernetes dans l'ordre
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('template', item) | from_yaml_all }}"
+      loop:
+        - "../k8s/00-namespace.yaml.j2"
+        - "../k8s/01-secret.yaml.j2"
+        - "../k8s/02-configmap.yaml.j2"
+        - "../k8s/03-redis-statefulset.yaml.j2"
+        - "../k8s/04-webapp-deployment.yaml.j2"
+        - "../k8s/05-service-ingress-hpa.yaml.j2"
+
+    - name: 3. Attendre que le déploiement de l'application soit prêt
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: legeni-webapp
+        namespace: "{{ k8s_namespace }}"
+      register: deploy_status
+      until: >
+        deploy_status.resources[0].status.readyReplicas is defined and
+        deploy_status.resources[0].status.readyReplicas == app_replicas
+      retries: 15
+      delay: 5
+
+    - name: 4. Afficher le succès du déploiement
+      ansible.builtin.debug:
+        msg: "Application déployée et prête avec succès sur http://{{ ingress_host }} (NodePort: {{ node_port }})"

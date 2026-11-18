@@ -4,8 +4,6 @@ FROM python:3.12-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 WORKDIR /app
-# On copie d'abord requirements.txt seul : cette couche reste en cache
-# tant que les dépendances ne changent pas.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -22,7 +20,8 @@ ARG APP_VERSION=dev
 LABEL org.opencontainers.image.title="legeni-webapp" \
       org.opencontainers.image.version="${APP_VERSION}"
 ENV APP_VERSION=${APP_VERSION}
-RUN useradd --create-home --uid 10001 appuser
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 10001 appuser
 COPY app.py .
 USER appuser
 EXPOSE 5000
